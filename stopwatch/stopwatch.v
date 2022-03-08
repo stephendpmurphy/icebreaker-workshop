@@ -17,17 +17,21 @@ module top (
 	// Display value register and increment bus
 	reg [7:0] display_value = 0;
 	wire [7:0] display_value_inc;
+	reg [0:0] running = 0;
+	reg [7:0] lap_value = 0;
+	reg [4:0] lap_timeout = 0;
+	reg [0:0] flashLap = 0;
 
 	// Clock divider and pulse registers
 	reg [20:0] clkdiv = 0;
 	reg clkdiv_pulse = 0;
 
 	// Combinatorial logic
-	assign LED1 = !BTN_N;                            // Not operator example
-	assign LED2 = BTN1 || BTN2;                      // Or operator example
-	assign LED3 = BTN2 ^ BTN3;                       // Xor operator example
-	assign LED4 = BTN3 && !BTN_N;                    // And operator example
-	assign LED5 = (BTN1 + BTN2 + BTN3 + 2'b00) >> 1; // Addition and shift example
+	assign LED1 = BTN1 && BTN2;                         // Not operator example
+	assign LED2 = BTN1 && BTN3;                      	// Or operator example
+	assign LED3 = BTN2 && BTN3;                       	// Xor operator example
+	assign LED4 = !BTN_N;                    			// And operator example
+	assign LED5 = BTN1 || BTN2 || BTN3 || !BTN_N;		 	// Addition and shift example
 
 	// Synchronous logic
 	always @(posedge CLK) begin
@@ -35,24 +39,52 @@ module top (
 		if (clkdiv == 1200000) begin
 			clkdiv <= 0;
 			clkdiv_pulse <= 1;
+			flashLap <= !flashLap;
 		end else begin
 			clkdiv <= clkdiv + 1;
 			clkdiv_pulse <= 0;
 		end
 
 		// Timer counter
-		if (clkdiv_pulse) begin
+		if (clkdiv_pulse && running == 1) begin
 			display_value <= display_value_inc;
 		end
 
+		if (clkdiv_pulse && (lap_timeout > 0)) begin
+			lap_timeout <= lap_timeout-1;
+		end
+
+		if (!BTN_N == 1) begin
+			clkdiv <= 0;
+			clkdiv_pulse <= 1;
+			display_value <= 0;
+			running <= 0;
+		end
+
+		if (BTN3 == 1) begin
+			running <= 1;
+		end
+
+		if (BTN1 == 1) begin
+			running <= 0;
+		end
+
+		if (BTN2 == 1) begin
+			lap_timeout <= 20;
+			lap_value <= display_value;
+		end
 	end
 
-	assign display_value_inc = display_value + 8'b1;
+	// assign display_value_inc = display_value + 8'b1;
+	bcd8_increment incrementBcd8 (
+		.din(display_value),
+		.dout(display_value_inc)
+	);
 
 	// 7 segment display control Pmod 1A
 	seven_seg_ctrl seven_segment_ctrl (
 		.CLK(CLK),
-		.din(display_value[7:0]),
+		.din(lap_timeout ? (flashLap ? lap_value[7:0] : 8'hFF) : display_value[7:0]),
 		.dout(seven_segment)
 	);
 
@@ -107,7 +139,9 @@ module seven_seg_ctrl (
 		msb_not_lsb <= msb_not_lsb ^ clkdiv_pulse;
 
 		if (clkdiv_pulse) begin
-			if (msb_not_lsb) begin
+		    if ( din == 8'hFF ) begin
+				dout[7:0] = 8'hFF;
+			end else if (msb_not_lsb) begin
 				dout[6:0] <= ~msb_digit;
 				dout[7] <= 0;
 			end else begin
@@ -128,11 +162,13 @@ module seven_seg_hex (
 			4'h0: dout = 7'b 0111111;
 			4'h1: dout = 7'b 0000110;
 			4'h2: dout = 7'b 1011011;
+			4'h3: dout = 7'b 1001111;
 			// 4'h3: dout = FIXME;
 			4'h4: dout = 7'b 1100110;
 			4'h5: dout = 7'b 1101101;
 			4'h6: dout = 7'b 1111101;
 			4'h7: dout = 7'b 0000111;
+			4'h8: dout = 7'b 1111111;
 			// 4'h8: dout = FIXME;
 			4'h9: dout = 7'b 1101111;
 			4'hA: dout = 7'b 1110111;

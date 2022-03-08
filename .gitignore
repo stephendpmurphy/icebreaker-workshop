@@ -5,3 +5,5 @@
 *.asc
 *.nplog
 *.rpt
+
+build/

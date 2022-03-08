@@ -24,10 +24,10 @@ module top (
 	wire dimmerPulse;
 	wire divClkPulse;
 	wire lapPulse;
+	wire RESET;
 	reg flashDisp = 0;
 
-	// Clock divider and pulse registers
-	reg clkdiv_pulse = 0;
+	assign RESET = !BTN_N;
 
 	// Synchronous logic
 	always @(posedge CLK) begin
@@ -40,6 +40,12 @@ module top (
 			flashDisp <= 1;
 		end else begin
 			flashDisp <= 0;
+		end
+
+		if(RESET) begin
+			flashDisp <= 0;
+			lap_value <= 0;
+			running <= 0;
 		end
 	end
 
@@ -54,6 +60,11 @@ module top (
 
 		if(lap_timeout > 0) begin
 			lap_timeout <= lap_timeout - 1;
+		end
+
+		if(RESET) begin
+			lap_timeout <= 0;
+			display_value <= 0;
 		end
 	end
 

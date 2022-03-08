@@ -8,7 +8,7 @@ ${BUILD_FOLDER}/$(PROJ).json: $(PROJ).v
 	yosys -ql ${BUILD_FOLDER}/$(PROJ).yslog -p 'synth_ice40 -top top -json $@' $<
 
 ${BUILD_FOLDER}/$(PROJ).asc: ${BUILD_FOLDER}/$(PROJ).json icebreaker.pcf
-	nextpnr-ice40 -ql $(PROJ).nplog --up5k --package sg48 --freq 12 --asc $@ --pcf icebreaker.pcf --json $<
+	nextpnr-ice40 -ql ${BUILD_FOLDER}/$(PROJ).nplog --up5k --package sg48 --freq 12 --asc $@ --pcf icebreaker.pcf --json $<
 
 ${BUILD_FOLDER}/$(PROJ).bin: ${BUILD_FOLDER}/$(PROJ).asc
 	icepack $< $@

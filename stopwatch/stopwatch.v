@@ -5,7 +5,6 @@
 module top (
 	input  CLK,
 	input  BTN_N, BTN1, BTN2, BTN3,
-	output LED1, LED2, LED3, LED4, LED5,
 	output P1A1, P1A2, P1A3, P1A4, P1A7, P1A8, P1A9, P1A10,
 );
 	// 7 segment control line bus
@@ -21,69 +20,61 @@ module top (
 	reg [7:0] lap_value = 0;
 	reg [4:0] lap_timeout = 0;
 	reg [0:0] flashLap = 0;
-	reg [20:0] dimVal = 2500;
-	reg [20:0] dimClk = 0;
-	reg [0:0] enVal = 0;
+
+	wire dimmerPulse;
+	wire divClkPulse;
+	reg flashDisp = 0;
 
 	// Clock divider and pulse registers
-	reg [20:0] clkdiv = 0;
 	reg clkdiv_pulse = 0;
-
-	// Combinatorial logic
-	assign LED1 = BTN1 && BTN2;                         // Not operator example
-	assign LED2 = BTN1 && BTN3;                      	// Or operator example
-	assign LED3 = BTN2 && BTN3;                       	// Xor operator example
-	assign LED4 = !BTN_N;                    			// And operator example
-	assign LED5 = BTN1 || BTN2 || BTN3 || !BTN_N;		 	// Addition and shift example
 
 	// Synchronous logic
 	always @(posedge CLK) begin
-		// Clock divider pulse generator
-		if (clkdiv == 1200000) begin
-			clkdiv <= 0;
-			clkdiv_pulse <= 1;
-			flashLap <= !flashLap;
-		end else begin
-			clkdiv <= clkdiv + 1;
-			clkdiv_pulse <= 0;
-		end
-
-		if (dimClk == dimVal) begin
-			enVal <= 0;
-		end
-
-		if( dimClk == 5000 ) begin
-			dimClk <= 0;
-			enVal <= 1;
-		end else begin
-			dimClk <= dimClk + 1;
-		end
-
-		// Timer counter
-		if (clkdiv_pulse && running == 1) begin
-			display_value <= display_value_inc;
-		end
-
-		if (clkdiv_pulse && (lap_timeout > 0)) begin
-			lap_timeout <= lap_timeout-1;
-		end
-
-		if (!BTN_N == 1) begin
-			clkdiv <= 0;
-			clkdiv_pulse <= 1;
-			display_value <= 0;
+		if (!BTN_N) begin
 			running <= 0;
 		end
 
-		if (BTN3 == 1) begin
+		if (BTN3) begin
 			running <= !running;
 		end
 
-		if (BTN2 == 1) begin
-			lap_timeout <= 20;
+		if(lap_timeout == 0) begin
+			flashDisp <= 0;
+		end
+
+		if (BTN2) begin
 			lap_value <= display_value;
+			flashDisp <= 1;
 		end
 	end
+
+	always @(posedge divClkPulse) begin
+		if(running) begin
+			display_value <= display_value_inc;
+		end
+
+		if(flashDisp) begin
+			lap_timeout <= 20;
+		end
+
+		if(lap_timeout > 0) begin
+			lap_timeout <= lap_timeout-1;
+			flashLap <= !flashLap;
+		end
+	end
+
+	divider clkDiv1_2M (
+		.clk(CLK),
+		.divider(25'd1200000),
+		.pulse(divClkPulse)
+	);
+
+	PWM backlightDriver(
+        .clk(CLK),
+        .period(25'd5000),
+        .target(25'd1000),
+        .dout(dimmerPulse)
+    );
 
 	// assign display_value_inc = display_value + 8'b1;
 	bcd8_increment incrementBcd8 (
@@ -94,11 +85,55 @@ module top (
 	// 7 segment display control Pmod 1A
 	seven_seg_ctrl seven_segment_ctrl (
 		.CLK(CLK),
-		.EN(enVal),
+		.EN(dimmerPulse),
 		.din(lap_timeout ? (flashLap ? lap_value[7:0] : 8'hFF) : display_value[7:0]),
 		.dout(seven_segment)
 	);
 
+endmodule
+
+module PWM (
+    input clk,
+    input [24:0] period,
+    input [24:0] target,
+    output reg dout,
+    );
+
+    reg [24:0] cnt = 0;
+
+    always @(posedge clk) begin
+        cnt <= cnt + 1;
+
+        if(cnt <= target) begin
+            dout <= 1;
+        end else begin
+            dout <= 0;
+        end
+
+        if(cnt == period) begin
+            cnt <= 0;
+            dout <= 1;
+        end
+    end
+endmodule
+
+module divider (
+    input clk,
+    input [24:0] divider,
+    output reg[0:0] pulse,
+    );
+
+    reg [24:0] clkCnt;
+
+    always @(posedge clk) begin
+        if(clkCnt == divider) begin
+            pulse <= 1;
+            clkCnt <= 0;
+        end else begin
+            clkCnt <= clkCnt + 1;
+            pulse <= 0;
+        end
+    end
 endmodule
 
 // BCD (Binary Coded Decimal) counter

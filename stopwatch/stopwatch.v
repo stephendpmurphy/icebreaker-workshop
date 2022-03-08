@@ -15,12 +15,15 @@ module top (
 	assign { P1A10, P1A9, P1A8, P1A7, P1A4, P1A3, P1A2, P1A1 } = seven_segment;
 
 	// Display value register and increment bus
-	reg [7:0] display_value = 0;
 	wire [7:0] display_value_inc;
+	reg [7:0] display_value = 0;
 	reg [0:0] running = 0;
 	reg [7:0] lap_value = 0;
 	reg [4:0] lap_timeout = 0;
 	reg [0:0] flashLap = 0;
+	reg [20:0] dimVal = 2500;
+	reg [20:0] dimClk = 0;
+	reg [0:0] enVal = 0;
 
 	// Clock divider and pulse registers
 	reg [20:0] clkdiv = 0;
@@ -43,6 +46,17 @@ module top (
 		end else begin
 			clkdiv <= clkdiv + 1;
 			clkdiv_pulse <= 0;
+		end
+
+		if (dimClk == dimVal) begin
+			enVal <= 0;
+		end
+
+		if( dimClk == 5000 ) begin
+			dimClk <= 0;
+			enVal <= 1;
+		end else begin
+			dimClk <= dimClk + 1;
 		end
 
 		// Timer counter
@@ -80,6 +94,7 @@ module top (
 	// 7 segment display control Pmod 1A
 	seven_seg_ctrl seven_segment_ctrl (
 		.CLK(CLK),
+		.EN(enVal),
 		.din(lap_timeout ? (flashLap ? lap_value[7:0] : 8'hFF) : display_value[7:0]),
 		.dout(seven_segment)
 	);
@@ -109,6 +124,7 @@ endmodule
 // at the same time.
 module seven_seg_ctrl (
 	input CLK,
+	input EN,
 	input [7:0] din,
 	output reg [7:0] dout
 );
@@ -134,15 +150,17 @@ module seven_seg_ctrl (
 		clkdiv_pulse <= &clkdiv;
 		msb_not_lsb <= msb_not_lsb ^ clkdiv_pulse;
 
-		if (clkdiv_pulse) begin
-		    if ( din == 8'hFF ) begin
+			if (!EN) begin
 				dout[7:0] = 8'hFF;
-			end else if (msb_not_lsb) begin
-				dout[6:0] <= ~msb_digit;
-				dout[7] <= 0;
-			end else begin
-				dout[6:0] <= ~lsb_digit;
-				dout[7] <= 1;
+			end else if (clkdiv_pulse) begin
+				if ( din == 8'hFF ) begin
+					dout[7:0] = 8'hFF;
+				end else if (msb_not_lsb) begin
+					dout[6:0] <= ~msb_digit;
+					dout[7] <= 0;
+				end else begin
+					dout[6:0] <= ~lsb_digit;
+					dout[7] <= 1;
 			end
 		end
 	end

@@ -23,6 +23,7 @@ module top (
 
 	wire dimmerPulse;
 	wire divClkPulse;
+	wire lapPulse;
 	reg flashDisp = 0;
 
 	// Clock divider and pulse registers
@@ -30,21 +31,15 @@ module top (
 
 	// Synchronous logic
 	always @(posedge CLK) begin
-		if (!BTN_N) begin
-			running <= 0;
-		end
-
 		if (BTN3) begin
 			running <= !running;
-		end
-
-		if(lap_timeout == 0) begin
-			flashDisp <= 0;
 		end
 
 		if (BTN2) begin
 			lap_value <= display_value;
 			flashDisp <= 1;
+		end else begin
+			flashDisp <= 0;
 		end
 	end
 
@@ -58,8 +53,7 @@ module top (
 		end
 
 		if(lap_timeout > 0) begin
-			lap_timeout <= lap_timeout-1;
-			flashLap <= !flashLap;
+			lap_timeout <= lap_timeout - 1;
 		end
 	end
 
@@ -69,10 +63,17 @@ module top (
 		.pulse(divClkPulse)
 	);
 
+	PWM lapFlashTimer(
+        .clk(CLK),
+        .period(25'd4800000),
+        .target(25'd2400000),
+        .dout(lapPulse)
+    );
+
 	PWM backlightDriver(
         .clk(CLK),
         .period(25'd5000),
-        .target(25'd1000),
+        .target(25'd5000),
         .dout(dimmerPulse)
     );
 
@@ -86,7 +87,7 @@ module top (
 	seven_seg_ctrl seven_segment_ctrl (
 		.CLK(CLK),
 		.EN(dimmerPulse),
-		.din(lap_timeout ? (flashLap ? lap_value[7:0] : 8'hFF) : display_value[7:0]),
+		.din(lap_timeout ? (lapPulse ? lap_value[7:0] : 8'hFF) : display_value[7:0]),
 		.dout(seven_segment)
 	);
 

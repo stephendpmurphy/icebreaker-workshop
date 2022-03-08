@@ -62,11 +62,7 @@ module top (
 		end
 
 		if (BTN3 == 1) begin
-			running <= 1;
-		end
-
-		if (BTN1 == 1) begin
-			running <= 0;
+			running <= !running;
 		end
 
 		if (BTN2 == 1) begin
